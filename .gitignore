@@ -1,0 +1,13 @@
+._*
+.vscode*
+a.out
+shox96
+shox96_0_1_0
+.DS_Store
+*.aux
+*.log
+*.out
+*.synctex.gz
+test*
+*w95.txt
+
