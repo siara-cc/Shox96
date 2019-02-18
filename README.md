@@ -47,7 +47,7 @@ However, Shox96 does not give good ratios compressing files more than 512 bytes.
 # Projects that use Shox96
 
 - [Shox96 Compression Library for Arduino](https://github.com/siara-cc/Shox96_Arduino)
-- [Sqlite3 User Defined Function as loadable extension(https://github.com/siara-cc/shox96_sqlite_UDF)
+- [Sqlite3 User Defined Function as loadable extension](https://github.com/siara-cc/Shox96_Sqlite_UDF)
 - [Sqlite3 Library for ESP32](https://github.com/siara-cc/esp32_arduino_sqlite3_lib)
 - [Sqlite3 Library for ESP8266](https://github.com/siara-cc/esp_arduino_sqlite3_lib)
 - [Sqlite3 Library for ESP-IDF](https://github.com/siara-cc/esp32-idf-sqlite3)
