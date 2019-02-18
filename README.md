@@ -1,3 +1,57 @@
-# Shox96
+# Shox96 - Guaranteed Compression for Short Strings
 
-Doc under construction.  See paper template_Article.pdf for details about this project.
+This is a C library for compressing short strings.  It was developed to individually compress and decompress small strings.
+
+# Character Set
+
+As of now Shox96 works only on `A to Z`, `a to z`, `0 to 9`, special characters, in the range ASCII 32 to 126, Tab (ASCII 9), CR (ASCII 13) and LF (ASCII 10).
+
+# How it works
+
+Shox96 is an entropy encoder.  It works by assigning fixed prefix-free codes for each letter in the above Character Set. More information is available in [this article](Shox96_Article_0_2_0.pdf?raw=true).
+
+# Compiling
+
+To compile, just use the simple command as follows:
+
+```sh
+gcc -o shox96_0_2 shox96_0_2.c
+```
+
+# API
+
+```C
+long shox96_0_2_0_compress(const char *in, long len, char *out, C_CONTEXT0_2 *c_ctx);
+long shox96_0_2_0_decompress(const char *in, long len, char *out, D_CONTEXT0_2 *d_ctx);
+```
+
+The context structures are used only when the string cannot fit into a single buffer.  Just pass `NULL` if you have only one String to compress or decompress.
+
+# Usage
+
+To see Shox96 in action, simply try to compress a string:
+
+```
+./shox96_0_2 "Hello World"
+```
+
+To compress and decompress a file, use:
+
+```
+./shox96_0_2 c <input_file> <compressed_file>
+./shox96_0_2 d <compressed_file> <decompressed_file>
+```
+
+However, Shox96 does not give good ratios compressing files more than 512 bytes.  It can also not be used for compressing binary files. It is only suitable for compressing Short Strings and small text files.
+
+# Projects that use Shox96
+
+- [Shox96 Compression Library for Arduino](https://github.com/siara-cc/Shox96_Arduino)
+- [Sqlite3 User Defined Function as loadable extension(https://github.com/siara-cc/shox96_sqlite_UDF)
+- [Sqlite3 Library for ESP32](https://github.com/siara-cc/esp32_arduino_sqlite3_lib)
+- [Sqlite3 Library for ESP8266](https://github.com/siara-cc/esp_arduino_sqlite3_lib)
+- [Sqlite3 Library for ESP-IDF](https://github.com/siara-cc/esp32-idf-sqlite3)
+ 
+# Issues
+
+In case of any issues, please email the Author or create GitHub issue.
