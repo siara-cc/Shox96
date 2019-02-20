@@ -10,4 +10,6 @@ shox96_0_1_0
 *.synctex.gz
 test*
 *w95.txt
+Debug
+Release
 
