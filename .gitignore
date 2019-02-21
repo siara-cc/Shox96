@@ -9,7 +9,7 @@ shox96_0_1_0
 *.out
 *.synctex.gz
 test*
-*w95.txt
+*.txt
 Debug
 Release
-
+*dSYM

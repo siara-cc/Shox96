@@ -76,21 +76,71 @@ int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
 }
 
 int encodeCount(char *out, int ol, int count) {
-   int16_t code_bits;
-   printf("count: %d\n", count);
-   if (count < 2) {
-      code_bits = count << 14;
-      return append_bits(out, ol, code_bits, 2, 1);
-   } else if (count < 10) {
-      count -= 2;
-      code_bits = 0x8000 + (count << 11);
-      return append_bits(out, ol, code_bits, 5, 1);
-   } else if (count < 137) {
-      count -= 10;
-      code_bits = 0xC000 + (count << 6);
-      return append_bits(out, ol, code_bits, 10, 1);
-   } else
-     return ol;
+  int16_t code_bits;
+  if (count < 2) {
+    code_bits = count << 14;
+    return append_bits(out, ol, code_bits, 2, 1);
+  } else if (count < 10) {
+    count -= 2;
+    code_bits = 0x8000 + (count << 11);
+    return append_bits(out, ol, code_bits, 5, 1);
+  } else if (count < 137) {
+    count -= 10;
+    code_bits = 0xC000 + (count << 6);
+    return append_bits(out, ol, code_bits, 10, 1);
+  } else
+    return ol;
+}
+
+int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
+  int j, k;
+  for (j = l - 136; j < l; j++) {
+    for (k = j; k < l && (l + k - j) < len; k++) {
+      if (in[k] != in[l + k - j])
+        break;
+    }
+    if ((l - j) > 136)
+      continue;
+    if (k > j && (k - j) > 3) {
+      *ol = append_bits(out, *ol, 14144, 10, 1);
+      *ol = encodeCount(out, *ol, k - j - 4); // len
+      *ol = encodeCount(out, *ol, l - j - 3); // dist
+      l += (k - j);
+      l--;
+      return l;
+    }
+  }
+  return -l;
+}
+
+int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst *prev_lines) {
+  if (prev_lines->next == NULL)
+    return -l;
+  int line_ctr = 0;
+  do {
+    int i, j, k;
+    int line_len = strlen(prev_lines->data);
+    for (j = 0; j < line_len; j++) {
+      for (i = l, k = j; k < line_len && i < len; k++, i++) {
+        if (prev_lines->data[k] != in[i])
+          break;
+      }
+      if (j > 136)
+         continue;
+      if (k > j && (k - j) > 4) {
+         *ol = append_bits(out, *ol, 14080, 10, 1);
+         *ol = encodeCount(out, *ol, k - j - 4); // len
+         *ol = encodeCount(out, *ol, j); // dist
+         *ol = encodeCount(out, *ol, line_ctr); // ctx
+         l += (k - j);
+         l--;
+         return l;
+      }
+    }
+    line_ctr++;
+    prev_lines = prev_lines->next;
+  } while (prev_lines && prev_lines->data != NULL);
+  return -l;
 }
 
 int shox96_0_2_0_compress(const char *in, int len, char *out, struct lnk_lst *prev_lines) {
@@ -110,102 +160,93 @@ int shox96_0_2_0_compress(const char *in, int len, char *out, struct lnk_lst *pr
   state = SHX_STATE_1;
   is_all_upper = 0;
   for (l=0; l<len; l++) {
-     c_in = in[l];
+    c_in = in[l];
 #if TO_MATCH_REPEATING_STRINGS == 1
-     if (l < (len - 4)) {
+    if (l < (len - 4)) {
 #if USE_64K_LOOKUP == 1
-       int16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
-       if (lookup[to_lookup]) {
+      int16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
+      if (lookup[to_lookup]) {
 #endif
-          int j, k;
-          for (j = l - 136; j < l; j++) {
-             for (k = j; k < l && (l + k - j) < len; k++) {
-               if (in[k] != in[l + k - j])
-                 break;
-             }
-             if ((l - j) > 136)
-               continue;
-             if (k > j && (k - j) > 3) {
-                ol = append_bits(out, ol, 14144, 10, 1);
-                ol = encodeCount(out, ol, k - j - 4); // len
-                ol = encodeCount(out, ol, l - j - 3); // dist
-                l += (k - j);
-                l--;
-                break;
-             }
-          }
-          if ((k - j) > 3)
-            continue;
+        l = matchOccurance(in, len, l, out, &ol);
+        if (l > 0)
+          continue;
+        l = -l;
 #if USE_64K_LOOKUP == 1
-       } else
-         lookup[to_lookup] = 1;
+      } else
+        lookup[to_lookup] = 1;
 #endif
-     }
+      if (prev_lines != NULL) {
+        l = matchLine(in, len, l, out, &ol, prev_lines);
+        if (l > 0)
+          continue;
+        l = -l;
+      }
+    }
 #endif
-     c_next = 0;
-     if (state == SHX_STATE_2) {
-        if (c_in == ' ' && len-1>l)
-           ptr = (char *) memchr(SET2_STR, in[l+1], 42);
-        else
-           ptr = (char *) memchr(SET2_STR, c_in, 42);
-        if (ptr == NULL) {
-           state = SHX_STATE_1;
-           ol = append_bits(out, ol, 8192, 4, 1);
-        }
-     }
-     is_upper = 0;
-     if (c_in >= 'A' && c_in <= 'Z')
-        is_upper = 1;
-     else {
-        if (is_all_upper) {
-           is_all_upper = 0;
-           ol = append_bits(out, ol, 8192, 4, state);
-        }
-     }
-     if (is_upper && !is_all_upper) {
-        for (ll=l+5; ll>=l && ll<len; ll--) {
-            if (in[ll] >= 'a' && in[ll] <= 'z')
-               break;
-        }
-        if (ll == l-1) {
-           ol = append_bits(out, ol, 8704, 8, state);
-           is_all_upper = 1;
-        }
-     }
-     if (state == SHX_STATE_1 && c_in >= '0' && c_in <= '9') {
-        ol = append_bits(out, ol, 14336, 7, state);
-        state = SHX_STATE_2;
-     }
-     c_next = 0;
-     if (l+1 < len)
-        c_next = in[l+1];
+    c_next = 0;
+    if (state == SHX_STATE_2) {
+      if (c_in == ' ' && len - 1 > l)
+        ptr = (char *) memchr(SET2_STR, in[l+1], 42);
+      else
+        ptr = (char *) memchr(SET2_STR, c_in, 42);
+      if (ptr == NULL) {
+        state = SHX_STATE_1;
+        ol = append_bits(out, ol, 8192, 4, 1);
+      }
+    }
+    is_upper = 0;
+    if (c_in >= 'A' && c_in <= 'Z')
+      is_upper = 1;
+    else {
+      if (is_all_upper) {
+        is_all_upper = 0;
+        ol = append_bits(out, ol, 8192, 4, state);
+      }
+    }
+    if (is_upper && !is_all_upper) {
+      for (ll=l+5; ll>=l && ll<len; ll--) {
+        if (in[ll] >= 'a' && in[ll] <= 'z')
+          break;
+      }
+      if (ll == l-1) {
+        ol = append_bits(out, ol, 8704, 8, state);
+        is_all_upper = 1;
+      }
+    }
+    if (state == SHX_STATE_1 && c_in >= '0' && c_in <= '9') {
+      ol = append_bits(out, ol, 14336, 7, state);
+      state = SHX_STATE_2;
+    }
+    c_next = 0;
+    if (l+1 < len)
+      c_next = in[l+1];
 
-     if (c_in >= 32 && c_in <= 126) {
-        c_in -= 32;
-        if (is_all_upper && is_upper)
-           c_in += 32;
-        if (c_in == 0 && state == SHX_STATE_2)
-           ol = append_bits(out, ol, 15232, 11, state);
-        else
-           ol = append_bits(out, ol, c_95[c_in], l_95[c_in], state);
-     } else
-     if (c_in == 13 && c_next == 10) {
-        ol = append_bits(out, ol, 13824, 9, state);
-        l++;
-     } else
-     if (c_in == 10) {
-        ol = append_bits(out, ol, 13952, 9, state);
-     } else
-     if (c_in == 13) {
-        ol = append_bits(out, ol, 9064, 13, state);
-     } else
-     if (c_in == '\t') {
-        ol = append_bits(out, ol, 9216, 7, state);
-     }
+    if (c_in >= 32 && c_in <= 126) {
+      c_in -= 32;
+      if (is_all_upper && is_upper)
+        c_in += 32;
+      if (c_in == 0 && state == SHX_STATE_2)
+        ol = append_bits(out, ol, 15232, 11, state);
+      else
+        ol = append_bits(out, ol, c_95[c_in], l_95[c_in], state);
+    } else
+    if (c_in == 13 && c_next == 10) {
+      ol = append_bits(out, ol, 13824, 9, state);
+      l++;
+    } else
+    if (c_in == 10) {
+      ol = append_bits(out, ol, 13952, 9, state);
+    } else
+    if (c_in == 13) {
+      ol = append_bits(out, ol, 9064, 13, state);
+    } else
+    if (c_in == '\t') {
+      ol = append_bits(out, ol, 9216, 7, state);
+    }
   }
-  bits = ol%8;
+  bits = ol % 8;
   if (bits) {
-     ol = append_bits(out, ol, 14272, 8 - bits, 1);
+    ol = append_bits(out, ol, 14272, 8 - bits, 1);
   }
   //printf("\n%ld\n", ol);
   return ol/8+(ol%8?1:0);
@@ -262,30 +303,30 @@ int getCodeIdx(char *code_type, const char *in, int len, int *bit_no_p) {
 int getNumFromBits(const char *in, int bit_no, int count) {
    int ret = 0;
    while (count--) {
-      ret += (getBitVal(in, bit_no++, 0) << count);
+     ret += (getBitVal(in, bit_no++, 0) << count);
    }
    return ret;
 }
 
 int readCount(const char *in, int *bit_no_p) {
-   if (getBitVal(in, (*bit_no_p)++, 0)) {
-     if (getBitVal(in, (*bit_no_p)++, 0)) {
-       if (getBitVal(in, (*bit_no_p)++, 0)) {
-         return 0;
-       } else {
-         int count = getNumFromBits(in, *bit_no_p, 7) + 10;
-         (*bit_no_p) += 7;
-         return count;
-       }
-     } else {
-       int count = getNumFromBits(in, *bit_no_p, 3) + 2;
-       (*bit_no_p) += 3;
-       return count;
-     }
-   } else {
-     return getBitVal(in, (*bit_no_p)++, 0);
-   }
-   return 0;
+  if (getBitVal(in, (*bit_no_p)++, 0)) {
+    if (getBitVal(in, (*bit_no_p)++, 0)) {
+      if (getBitVal(in, (*bit_no_p)++, 0)) {
+        return 0;
+      } else {
+        int count = getNumFromBits(in, *bit_no_p, 7) + 10;
+        (*bit_no_p) += 7;
+        return count;
+      }
+    } else {
+      int count = getNumFromBits(in, *bit_no_p, 3) + 2;
+      (*bit_no_p) += 3;
+      return count;
+    }
+  } else {
+    return getBitVal(in, (*bit_no_p)++, 0);
+  }
+  return 0;
 }
 
 int shox96_0_2_0_decompress(const char *in, int len, char *out) {
@@ -378,9 +419,7 @@ int shox96_0_2_0_decompress(const char *in, int len, char *out) {
            case 8:
              if (getBitVal(in, bit_no++, 0)) {
                int dict_len = readCount(in, &bit_no) + 4;
-               printf("dict len: %d", dict_len);
                int dist = readCount(in, &bit_no) + 3;
-               printf("dist: %d", dist);
                memcpy(out + ol, out + ol - dist, dict_len);
                ol += dict_len;
              }
@@ -408,17 +447,17 @@ int is_empty(const char *s) {
 
 void print_compressed(char *in, int len) {
 
-   int l;
-   byte bit;
-   for (l=0; l<len; l++) {
-       printf("%d, ", in[l]);
-   }
-   printf("\n");
-   for (l=0; l<len*8; l++) {
-       bit = (in[l/8]>>(7-l%8))&0x01;
-       printf("%d", bit);
-       if (l%8 == 7) printf(" ");
-   }
+  int l;
+  byte bit;
+  for (l=0; l<len; l++) {
+    printf("%d, ", in[l]);
+  }
+  printf("\n");
+  for (l=0; l<len*8; l++) {
+    bit = (in[l/8]>>(7-l%8))&0x01;
+    printf("%d", bit);
+    if (l%8 == 7) printf(" ");
+  }
 
 }
 
@@ -507,6 +546,7 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
    ctot = 0;
    struct lnk_lst lines;
    struct lnk_lst *cur_line = &lines;
+   lines.next = NULL;
    fputs("#ifndef __SHOX96_0_2_0_COMPRESSED__\n", wfp);
    fputs("#define __SHOX96_0_2_0_COMPRESSED__\n", wfp);
    while (fgets(cbuf, sizeof(cbuf), fp) != NULL) {
@@ -520,14 +560,6 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
       if (is_empty(cbuf))
         continue;
       if (len > 0) {
-        if (cur_line == &lines) {
-           cur_line->next = NULL;
-        } else {
-           cur_line->next = (struct lnk_lst *) malloc(sizeof(struct lnk_lst));
-           cur_line = cur_line->next;
-        }
-        cur_line->data = (char *) malloc(len + 1);
-        strncpy(cur_line->data, cbuf, len);
         clen = shox96_0_2_0_compress(cbuf, len, dbuf, &lines);
         if (clen > 0) {
             perc = (len-clen);
@@ -538,6 +570,12 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
             tot_len += len;
             ctot += clen;
         }
+        cur_line->next = (struct lnk_lst *) malloc(sizeof(struct lnk_lst));
+        cur_line->data = (char *) malloc(len + 1);
+        strncpy(cur_line->data, cbuf, len);
+        cur_line = cur_line->next;
+        cur_line->data = NULL;
+        cur_line->next = NULL;
       }
    }
    perc = (tot_len-ctot);
