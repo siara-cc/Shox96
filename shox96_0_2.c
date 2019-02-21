@@ -116,6 +116,10 @@ int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
 int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst *prev_lines) {
   if (prev_lines->next == NULL)
     return -l;
+  int last_ol = *ol;
+  int last_len = 0;
+  int last_dist = 0;
+  int last_ctx = 0;
   int line_ctr = 0;
   do {
     int i, j, k;
@@ -128,18 +132,29 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
       if (j > 136)
          continue;
       if (k > j && (k - j) > 4) {
-         *ol = append_bits(out, *ol, 14080, 10, 1);
-         *ol = encodeCount(out, *ol, k - j - 4); // len
-         *ol = encodeCount(out, *ol, j); // dist
-         *ol = encodeCount(out, *ol, line_ctr); // ctx
-         l += (k - j);
-         l--;
-         return l;
+        if (last_len) {
+          int saving = ((k - j - 4) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
+          if (!saving)
+            continue;
+          *ol = last_ol;
+        }
+        last_len = k - j - 4;
+        last_dist = j;
+        last_ctx = line_ctr;
+        *ol = append_bits(out, *ol, 14080, 10, 1);
+        *ol = encodeCount(out, *ol, last_len);
+        *ol = encodeCount(out, *ol, last_dist);
+        *ol = encodeCount(out, *ol, last_ctx);
       }
     }
     line_ctr++;
     prev_lines = prev_lines->next;
   } while (prev_lines && prev_lines->data != NULL);
+  if (last_len) {
+    l += last_len + 4;
+    l--;
+    return l;
+  }
   return -l;
 }
 
