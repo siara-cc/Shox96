@@ -76,11 +76,11 @@ int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
 }
 
 int encodeCount(char *out, int ol, int count) {
-  const byte codes[7] = {0x01, 0x82, 0xC3, 0xE5, 0xE6, 0xF5, 0xFD};
-  const byte bit_len[7] = {2, 5, 7, 9, 11, 13, 16};
-  const int16_t adder[7] = {0, 4, 36, 164, 676, 2724, 10916};
+  const byte codes[7] = {0x01, 0x82, 0xC3, 0xE5, 0xED, 0xF5, 0xFD};
+  const byte bit_len[7] =  {2, 5,  7,   9,  11,   13,    16};
+  const uint16_t adder[7] = {0, 4, 36, 164, 676, 2724, 10916};
   int till = 0;
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 7; i++) {
     till += (1 << bit_len[i]);
     if (count < till) {
       ol = append_bits(out, ol, (codes[i] & 0xF8) << 8, codes[i] & 0x07, 1);
@@ -98,10 +98,10 @@ int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
       if (in[k] != in[l + k - j])
         break;
     }
-    if (k > j && (k - j) > 3) {
+    if ((k - j) > 6) {
       *ol = append_bits(out, *ol, 14144, 10, 1);
-      *ol = encodeCount(out, *ol, k - j - 4); // len
-      *ol = encodeCount(out, *ol, l - j - 3); // dist
+      *ol = encodeCount(out, *ol, k - j - 7); // len
+      *ol = encodeCount(out, *ol, l - j - 6); // dist
       l += (k - j);
       l--;
       return l;
@@ -124,11 +124,11 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         if (prev_lines->data[k] != in[i])
           break;
       }
-      if ((k - j) > 4) {
+      if ((k - j) > 7) {
         if (last_len) {
           int saving = ((k - j) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
           if (saving < 0) {
-            printf("No savng: %d\n", saving);
+            //printf("No savng: %d\n", saving);
             continue;
           }
           *ol = last_ol;
@@ -137,7 +137,7 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         last_dist = j;
         last_ctx = line_ctr;
         *ol = append_bits(out, *ol, 14080, 10, 1);
-        *ol = encodeCount(out, *ol, last_len - 4);
+        *ol = encodeCount(out, *ol, last_len - 7);
         *ol = encodeCount(out, *ol, last_dist);
         *ol = encodeCount(out, *ol, last_ctx);
         printf("Len: %d, Dist: %d, Line: %d\n", last_len, last_dist, last_ctx);
@@ -147,7 +147,7 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
     prev_lines = prev_lines->previous;
   } while (prev_lines && prev_lines->data != NULL);
   if (last_len) {
-    l += last_len + 4;
+    l += last_len;
     l--;
     return l;
   }
@@ -175,7 +175,7 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
 #if TO_MATCH_REPEATING_STRINGS == 1
     if (l < (len - 4)) {
 #if USE_64K_LOOKUP == 1
-      int16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
+      uint16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
       if (lookup[to_lookup]) {
 #endif
         l = matchOccurance(in, len, l, out, &ol);
@@ -314,14 +314,14 @@ int getCodeIdx(char *code_type, const char *in, int len, int *bit_no_p) {
 int getNumFromBits(const char *in, int bit_no, int count) {
    int ret = 0;
    while (count--) {
-     ret += (getBitVal(in, bit_no++, 0) << count);
+     ret += getBitVal(in, bit_no++, count);
    }
    return ret;
 }
 
 int readCount(const char *in, int *bit_no_p, int len) {
   const byte bit_len[7] = {5, 2, 7, 9, 11, 13, 16};
-  const int16_t adder[7] = {4, 0, 36, 164, 676, 2724, 10916};
+  const uint16_t adder[7] = {4, 0, 36, 164, 676, 2724, 10916};
   int idx = getCodeIdx(hcode, in, len, bit_no_p);
   if (idx > 6)
     return 0;
@@ -330,7 +330,7 @@ int readCount(const char *in, int *bit_no_p, int len) {
   return count;
 }
 
-int shox96_0_2_decompress(const char *in, int len, char *out) {
+int shox96_0_2_decompress(const char *in, int len, char *out, struct lnk_lst *prev_lines) {
 
   int dstate;
   int bit_no;
@@ -419,9 +419,18 @@ int shox96_0_2_decompress(const char *in, int len, char *out) {
              break;
            case 8:
              if (getBitVal(in, bit_no++, 0)) {
-               int dict_len = readCount(in, &bit_no, len) + 4;
-               int dist = readCount(in, &bit_no, len) + 3;
+               int dict_len = readCount(in, &bit_no, len) + 7;
+               int dist = readCount(in, &bit_no, len) + 6;
                memcpy(out + ol, out + ol - dist, dict_len);
+               ol += dict_len;
+             } else {
+               int dict_len = readCount(in, &bit_no, len) + 7;
+               int dist = readCount(in, &bit_no, len);
+               int ctx = readCount(in, &bit_no, len);
+               struct lnk_lst *cur_line = prev_lines;
+               while (ctx--)
+                 cur_line = cur_line->previous;
+               memmove(out + ol, cur_line->data + dist, dict_len);
                ol += dict_len;
              }
              continue;
@@ -464,8 +473,8 @@ void print_compressed(char *in, int len) {
 
 int main(int argv, char *args[]) {
 
-char cbuf[1024];
-char dbuf[1024];
+char cbuf[8192];
+char dbuf[8192];
 long len, tot_len, clen, ctot, dlen, l;
 float perc;
 FILE *fp, *wfp;
@@ -522,7 +531,7 @@ if (argv == 4 && strcmp(args[1], "d") == 0) {
      len_to_read += fgetc(fp);
      bytes_read = fread(dbuf, 1, len_to_read, fp);
      if (bytes_read > 0) {
-        dlen = shox96_0_2_decompress(dbuf, bytes_read, cbuf);
+        dlen = shox96_0_2_decompress(dbuf, bytes_read, cbuf, NULL);
         if (dlen > 0) {
            if (dlen != fwrite(cbuf, 1, dlen, wfp)) {
               perror("fwrite");
@@ -564,11 +573,15 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
             perc = (len-clen);
             perc /= len;
             perc *= 100;
+            //print_compressed(dbuf, clen);
             printf("len: %ld/%ld=", clen, len);
             printf("%.2f %s\n", perc, cbuf);
             tot_len += len;
             ctot += clen;
         }
+        dlen = shox96_0_2_decompress(dbuf, clen, cbuf, cur_line);
+        cbuf[dlen] = 0;
+        printf("\n%s\n", cbuf);
         struct lnk_lst *ll;
         ll = cur_line;
         cur_line = (struct lnk_lst *) malloc(sizeof(struct lnk_lst));
@@ -590,7 +603,7 @@ if (argv == 2) {
    ctot = shox96_0_2_compress(args[1], len, cbuf, NULL);
    print_compressed(cbuf, ctot);
    memset(dbuf, 0, sizeof(dbuf));
-   dlen = shox96_0_2_decompress(cbuf, ctot, dbuf);
+   dlen = shox96_0_2_decompress(cbuf, ctot, dbuf, NULL);
    dbuf[dlen] = 0;
    printf("\n%s\n", dbuf);
    perc = (len-ctot);
