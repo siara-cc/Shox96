@@ -77,8 +77,8 @@ int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
 
 int encodeCount(char *out, int ol, int count) {
   const byte codes[7] = {0x01, 0x82, 0xC3, 0xE5, 0xE6, 0xF5, 0xFD};
-  const byte bit_len[7] = {1, 4, 7, 9, 11, 13, 16};
-  const int16_t adder[7] = {0, 2, 18, 146, 658, 2706, 10898};
+  const byte bit_len[7] = {2, 5, 7, 9, 11, 13, 16};
+  const int16_t adder[7] = {0, 4, 36, 164, 676, 2724, 10916};
   int till = 0;
   for (int i = 0; i < 6; i++) {
     till += (1 << bit_len[i]);
@@ -111,8 +111,6 @@ int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
 }
 
 int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst *prev_lines) {
-  if (prev_lines->next == NULL)
-    return -l;
   int last_ol = *ol;
   int last_len = 0;
   int last_dist = 0;
@@ -126,24 +124,27 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         if (prev_lines->data[k] != in[i])
           break;
       }
-      if (k > j && (k - j) > 4) {
+      if ((k - j) > 4) {
         if (last_len) {
-          int saving = ((k - j - 4) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
-          if (!saving)
+          int saving = ((k - j) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
+          if (saving < 0) {
+            printf("No savng: %d\n", saving);
             continue;
+          }
           *ol = last_ol;
         }
-        last_len = k - j - 4;
+        last_len = (k - j);
         last_dist = j;
         last_ctx = line_ctr;
         *ol = append_bits(out, *ol, 14080, 10, 1);
-        *ol = encodeCount(out, *ol, last_len);
+        *ol = encodeCount(out, *ol, last_len - 4);
         *ol = encodeCount(out, *ol, last_dist);
         *ol = encodeCount(out, *ol, last_ctx);
+        printf("Len: %d, Dist: %d, Line: %d\n", last_len, last_dist, last_ctx);
       }
     }
     line_ctr++;
-    prev_lines = prev_lines->next;
+    prev_lines = prev_lines->previous;
   } while (prev_lines && prev_lines->data != NULL);
   if (last_len) {
     l += last_len + 4;
@@ -319,8 +320,8 @@ int getNumFromBits(const char *in, int bit_no, int count) {
 }
 
 int readCount(const char *in, int *bit_no_p, int len) {
-  const byte bit_len[7] = {4, 1, 7, 9, 11, 13, 16};
-  const int16_t adder[7] = {2, 0, 18, 146, 658, 2706, 10898};
+  const byte bit_len[7] = {5, 2, 7, 9, 11, 13, 16};
+  const int16_t adder[7] = {4, 0, 36, 164, 676, 2724, 10916};
   int idx = getCodeIdx(hcode, in, len, bit_no_p);
   if (idx > 6)
     return 0;
@@ -544,9 +545,7 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
    }
    tot_len = 0;
    ctot = 0;
-   struct lnk_lst lines;
-   struct lnk_lst *cur_line = &lines;
-   lines.next = NULL;
+   struct lnk_lst *cur_line = NULL;
    fputs("#ifndef __SHOX96_0_2_COMPRESSED__\n", wfp);
    fputs("#define __SHOX96_0_2_COMPRESSED__\n", wfp);
    while (fgets(cbuf, sizeof(cbuf), fp) != NULL) {
@@ -560,7 +559,7 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
       if (is_empty(cbuf))
         continue;
       if (len > 0) {
-        clen = shox96_0_2_compress(cbuf, len, dbuf, &lines);
+        clen = shox96_0_2_compress(cbuf, len, dbuf, cur_line);
         if (clen > 0) {
             perc = (len-clen);
             perc /= len;
@@ -570,12 +569,12 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
             tot_len += len;
             ctot += clen;
         }
-        cur_line->next = (struct lnk_lst *) malloc(sizeof(struct lnk_lst));
+        struct lnk_lst *ll;
+        ll = cur_line;
+        cur_line = (struct lnk_lst *) malloc(sizeof(struct lnk_lst));
         cur_line->data = (char *) malloc(len + 1);
         strncpy(cur_line->data, cbuf, len);
-        cur_line = cur_line->next;
-        cur_line->data = NULL;
-        cur_line->next = NULL;
+        cur_line->previous = ll;
       }
    }
    perc = (tot_len-ctot);
