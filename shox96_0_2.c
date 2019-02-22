@@ -76,31 +76,28 @@ int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
 }
 
 int encodeCount(char *out, int ol, int count) {
-  int16_t code_bits;
-  if (count < 2) {
-    code_bits = count << 14;
-    return append_bits(out, ol, code_bits, 2, 1);
-  } else if (count < 10) {
-    count -= 2;
-    code_bits = 0x8000 + (count << 11);
-    return append_bits(out, ol, code_bits, 5, 1);
-  } else if (count < 137) {
-    count -= 10;
-    code_bits = 0xC000 + (count << 6);
-    return append_bits(out, ol, code_bits, 10, 1);
-  } else
-    return ol;
+  const byte codes[7] = {0x01, 0x82, 0xC3, 0xE5, 0xE6, 0xF5, 0xFD};
+  const byte bit_len[7] = {1, 4, 7, 9, 11, 13, 16};
+  const int16_t adder[7] = {0, 2, 18, 146, 658, 2706, 10898};
+  int till = 0;
+  for (int i = 0; i < 6; i++) {
+    till += (1 << bit_len[i]);
+    if (count < till) {
+      ol = append_bits(out, ol, (codes[i] & 0xF8) << 8, codes[i] & 0x07, 1);
+      ol = append_bits(out, ol, (count - adder[i]) << (16 - bit_len[i]), bit_len[i], 1);
+      return ol;
+    }
+  }
+  return ol;
 }
 
 int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
   int j, k;
-  for (j = l - 136; j < l; j++) {
+  for (j = 0; j < l; j++) {
     for (k = j; k < l && (l + k - j) < len; k++) {
       if (in[k] != in[l + k - j])
         break;
     }
-    if ((l - j) > 136)
-      continue;
     if (k > j && (k - j) > 3) {
       *ol = append_bits(out, *ol, 14144, 10, 1);
       *ol = encodeCount(out, *ol, k - j - 4); // len
@@ -129,8 +126,6 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         if (prev_lines->data[k] != in[i])
           break;
       }
-      if (j > 136)
-         continue;
       if (k > j && (k - j) > 4) {
         if (last_len) {
           int saving = ((k - j - 4) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
@@ -158,7 +153,7 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
   return -l;
 }
 
-int shox96_0_2_0_compress(const char *in, int len, char *out, struct lnk_lst *prev_lines) {
+int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev_lines) {
 
   char *ptr;
   byte bits;
@@ -323,28 +318,18 @@ int getNumFromBits(const char *in, int bit_no, int count) {
    return ret;
 }
 
-int readCount(const char *in, int *bit_no_p) {
-  if (getBitVal(in, (*bit_no_p)++, 0)) {
-    if (getBitVal(in, (*bit_no_p)++, 0)) {
-      if (getBitVal(in, (*bit_no_p)++, 0)) {
-        return 0;
-      } else {
-        int count = getNumFromBits(in, *bit_no_p, 7) + 10;
-        (*bit_no_p) += 7;
-        return count;
-      }
-    } else {
-      int count = getNumFromBits(in, *bit_no_p, 3) + 2;
-      (*bit_no_p) += 3;
-      return count;
-    }
-  } else {
-    return getBitVal(in, (*bit_no_p)++, 0);
-  }
-  return 0;
+int readCount(const char *in, int *bit_no_p, int len) {
+  const byte bit_len[7] = {4, 1, 7, 9, 11, 13, 16};
+  const int16_t adder[7] = {2, 0, 18, 146, 658, 2706, 10898};
+  int idx = getCodeIdx(hcode, in, len, bit_no_p);
+  if (idx > 6)
+    return 0;
+  int count = getNumFromBits(in, *bit_no_p, bit_len[idx]) + adder[idx];
+  (*bit_no_p) += bit_len[idx];
+  return count;
 }
 
-int shox96_0_2_0_decompress(const char *in, int len, char *out) {
+int shox96_0_2_decompress(const char *in, int len, char *out) {
 
   int dstate;
   int bit_no;
@@ -433,8 +418,8 @@ int shox96_0_2_0_decompress(const char *in, int len, char *out) {
              break;
            case 8:
              if (getBitVal(in, bit_no++, 0)) {
-               int dict_len = readCount(in, &bit_no) + 4;
-               int dist = readCount(in, &bit_no) + 3;
+               int dict_len = readCount(in, &bit_no, len) + 4;
+               int dist = readCount(in, &bit_no, len) + 3;
                memcpy(out + ol, out + ol - dist, dict_len);
                ol += dict_len;
              }
@@ -505,7 +490,7 @@ if (argv == 4 && strcmp(args[1], "c") == 0) {
    do {
      bytes_read = fread(cbuf, 1, sizeof(cbuf), fp);
      if (bytes_read > 0) {
-        clen = shox96_0_2_0_compress(cbuf, bytes_read, dbuf, NULL);
+        clen = shox96_0_2_compress(cbuf, bytes_read, dbuf, NULL);
         ctot += clen;
         tot_len += bytes_read;
         if (clen > 0) {
@@ -536,7 +521,7 @@ if (argv == 4 && strcmp(args[1], "d") == 0) {
      len_to_read += fgetc(fp);
      bytes_read = fread(dbuf, 1, len_to_read, fp);
      if (bytes_read > 0) {
-        dlen = shox96_0_2_0_decompress(dbuf, bytes_read, cbuf);
+        dlen = shox96_0_2_decompress(dbuf, bytes_read, cbuf);
         if (dlen > 0) {
            if (dlen != fwrite(cbuf, 1, dlen, wfp)) {
               perror("fwrite");
@@ -562,8 +547,8 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
    struct lnk_lst lines;
    struct lnk_lst *cur_line = &lines;
    lines.next = NULL;
-   fputs("#ifndef __SHOX96_0_2_0_COMPRESSED__\n", wfp);
-   fputs("#define __SHOX96_0_2_0_COMPRESSED__\n", wfp);
+   fputs("#ifndef __SHOX96_0_2_COMPRESSED__\n", wfp);
+   fputs("#define __SHOX96_0_2_COMPRESSED__\n", wfp);
    while (fgets(cbuf, sizeof(cbuf), fp) != NULL) {
       // compress the line and look in previous lines
       // add to linked list
@@ -575,7 +560,7 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
       if (is_empty(cbuf))
         continue;
       if (len > 0) {
-        clen = shox96_0_2_0_compress(cbuf, len, dbuf, &lines);
+        clen = shox96_0_2_compress(cbuf, len, dbuf, &lines);
         if (clen > 0) {
             perc = (len-clen);
             perc /= len;
@@ -603,10 +588,10 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
 if (argv == 2) {
    len = strlen(args[1]);
    memset(cbuf, 0, sizeof(cbuf));
-   ctot = shox96_0_2_0_compress(args[1], len, cbuf, NULL);
+   ctot = shox96_0_2_compress(args[1], len, cbuf, NULL);
    print_compressed(cbuf, ctot);
    memset(dbuf, 0, sizeof(dbuf));
-   dlen = shox96_0_2_0_decompress(cbuf, ctot, dbuf);
+   dlen = shox96_0_2_decompress(cbuf, ctot, dbuf);
    dbuf[dlen] = 0;
    printf("\n%s\n", dbuf);
    perc = (len-ctot);
