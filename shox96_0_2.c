@@ -33,11 +33,12 @@ char *SET2_STR = "9012345678.,-/=+ ()$%&;:<>*\"{}[]@?'^#_!\\|~`";
 
 enum {SHX_STATE_1 = 1, SHX_STATE_2};
 
-#define TO_MATCH_REPEATING_STRINGS 1
+byte to_match_repeating_strings = 1;
 #define USE_64K_LOOKUP 1
 #if USE_64K_LOOKUP == 1
 byte lookup[65536];
 #endif
+#define NICE_LEN 7
 
 unsigned int mask[] = {0x8000, 0xC000, 0xE000, 0xF000, 0xF800, 0xFC00, 0xFE00, 0xFF00};
 int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
@@ -77,10 +78,10 @@ int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
 
 int encodeCount(char *out, int ol, int count) {
   const byte codes[7] = {0x01, 0x82, 0xC3, 0xE5, 0xED, 0xF5, 0xFD};
-  const byte bit_len[7] =  {2, 5,  7,   9,  11,   13,    16};
-  const uint16_t adder[7] = {0, 4, 36, 164, 676, 2724, 10916};
+  const byte bit_len[7] =  {2, 5,  7,   9,  12,   16,  17};
+  const uint16_t adder[7] = {0, 4, 36, 164, 676, 4772,  0};
   int till = 0;
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < 6; i++) {
     till += (1 << bit_len[i]);
     if (count < till) {
       ol = append_bits(out, ol, (codes[i] & 0xF8) << 8, codes[i] & 0x07, 1);
@@ -100,8 +101,8 @@ int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
     }
     if ((k - j) > 6) {
       *ol = append_bits(out, *ol, 14144, 10, 1);
-      *ol = encodeCount(out, *ol, k - j - 7); // len
-      *ol = encodeCount(out, *ol, l - j - 6); // dist
+      *ol = encodeCount(out, *ol, k - j - NICE_LEN); // len
+      *ol = encodeCount(out, *ol, l - j - NICE_LEN + 1); // dist
       l += (k - j);
       l--;
       return l;
@@ -124,7 +125,7 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         if (prev_lines->data[k] != in[i])
           break;
       }
-      if ((k - j) > 7) {
+      if ((k - j) > (NICE_LEN - 1)) {
         if (last_len) {
           int saving = ((k - j) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
           if (saving < 0) {
@@ -137,10 +138,10 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         last_dist = j;
         last_ctx = line_ctr;
         *ol = append_bits(out, *ol, 14080, 10, 1);
-        *ol = encodeCount(out, *ol, last_len - 7);
+        *ol = encodeCount(out, *ol, last_len - NICE_LEN);
         *ol = encodeCount(out, *ol, last_dist);
         *ol = encodeCount(out, *ol, last_ctx);
-        printf("Len: %d, Dist: %d, Line: %d\n", last_len, last_dist, last_ctx);
+        //printf("Len: %d, Dist: %d, Line: %d\n", last_len, last_dist, last_ctx);
       }
     }
     line_ctr++;
@@ -172,28 +173,28 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
   is_all_upper = 0;
   for (l=0; l<len; l++) {
     c_in = in[l];
-#if TO_MATCH_REPEATING_STRINGS == 1
-    if (l < (len - 4)) {
+    if (to_match_repeating_strings) {
+      if (l < (len - 4)) {
 #if USE_64K_LOOKUP == 1
-      uint16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
-      if (lookup[to_lookup]) {
+        uint16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
+        if (lookup[to_lookup]) {
 #endif
-        l = matchOccurance(in, len, l, out, &ol);
-        if (l > 0)
-          continue;
-        l = -l;
+          l = matchOccurance(in, len, l, out, &ol);
+          if (l > 0)
+            continue;
+          l = -l;
 #if USE_64K_LOOKUP == 1
-      } else
-        lookup[to_lookup] = 1;
+        } else
+          lookup[to_lookup] = 1;
 #endif
-      if (prev_lines != NULL) {
-        l = matchLine(in, len, l, out, &ol, prev_lines);
-        if (l > 0)
-          continue;
-        l = -l;
+        if (prev_lines != NULL) {
+          l = matchLine(in, len, l, out, &ol, prev_lines);
+          if (l > 0)
+            continue;
+          l = -l;
+        }
       }
     }
-#endif
     c_next = 0;
     if (state == SHX_STATE_2) {
       if (c_in == ' ' && len - 1 > l)
@@ -320,8 +321,8 @@ int getNumFromBits(const char *in, int bit_no, int count) {
 }
 
 int readCount(const char *in, int *bit_no_p, int len) {
-  const byte bit_len[7] = {5, 2, 7, 9, 11, 13, 16};
-  const uint16_t adder[7] = {4, 0, 36, 164, 676, 2724, 10916};
+  const byte bit_len[7]   = {5, 2,  7,   9,  12,   16, 17};
+  const uint16_t adder[7] = {4, 0, 36, 164, 676, 4772,  0};
   int idx = getCodeIdx(hcode, in, len, bit_no_p);
   if (idx > 6)
     return 0;
@@ -419,12 +420,12 @@ int shox96_0_2_decompress(const char *in, int len, char *out, struct lnk_lst *pr
              break;
            case 8:
              if (getBitVal(in, bit_no++, 0)) {
-               int dict_len = readCount(in, &bit_no, len) + 7;
+               int dict_len = readCount(in, &bit_no, len) + NICE_LEN;
                int dist = readCount(in, &bit_no, len) + 6;
                memcpy(out + ol, out + ol - dist, dict_len);
                ol += dict_len;
              } else {
-               int dict_len = readCount(in, &bit_no, len) + 7;
+               int dict_len = readCount(in, &bit_no, len) + NICE_LEN;
                int dist = readCount(in, &bit_no, len);
                int ctx = readCount(in, &bit_no, len);
                struct lnk_lst *cur_line = prev_lines;
@@ -455,6 +456,33 @@ int is_empty(const char *s) {
   return 1;
 }
 
+// From https://stackoverflow.com/questions/19758270/read-varint-from-linux-sockets#19760246
+// Encode an unsigned 64-bit varint.  Returns number of encoded bytes.
+// 'buffer' must have room for up to 10 bytes.
+int encode_unsigned_varint(uint8_t *buffer, uint64_t value) {
+  int encoded = 0;
+  do {
+    uint8_t next_byte = value & 0x7F;
+    value >>= 7;
+    if (value)
+      next_byte |= 0x80;
+    buffer[encoded++] = next_byte;
+  } while (value);
+  return encoded;
+}
+
+uint64_t decode_unsigned_varint(const uint8_t *data, int *decoded_bytes) {
+  int i = 0;
+  uint64_t decoded_value = 0;
+  int shift_amount = 0;
+  do {
+    decoded_value |= (uint64_t)(data[i] & 0x7F) << shift_amount;     
+    shift_amount += 7;
+  } while ((data[i++] & 0x80) != 0);
+  *decoded_bytes = i;
+  return decoded_value;
+}
+
 void print_compressed(char *in, int len) {
 
   int l;
@@ -474,7 +502,7 @@ void print_compressed(char *in, int len) {
 int main(int argv, char *args[]) {
 
 char cbuf[8192];
-char dbuf[8192];
+char dbuf[1024];
 long len, tot_len, clen, ctot, dlen, l;
 float perc;
 FILE *fp, *wfp;
@@ -541,13 +569,17 @@ if (argv == 4 && strcmp(args[1], "d") == 0) {
      }
    } while (bytes_read > 0);
 } else
-if (argv == 4 && strcmp(args[1], "g") == 0) {
+if (argv == 4 && (strcmp(args[1], "g") == 0 || 
+      strcmp(args[1], "G") == 0)) {
+   if (strcmp(args[1], "g") == 0)
+     to_match_repeating_strings = 0;
    fp = fopen(args[2], "r");
    if (fp == NULL) {
       perror(args[2]);
       return 1;
    }
-   wfp = fopen(args[3], "w+");
+   sprintf(cbuf, "%s.h", args[3]);
+   wfp = fopen(cbuf, "w+");
    if (wfp == NULL) {
       perror(args[3]);
       return 1;
@@ -555,8 +587,13 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
    tot_len = 0;
    ctot = 0;
    struct lnk_lst *cur_line = NULL;
-   fputs("#ifndef __SHOX96_0_2_COMPRESSED__\n", wfp);
-   fputs("#define __SHOX96_0_2_COMPRESSED__\n", wfp);
+   fputs("#ifndef __", wfp);
+   fputs(args[3], wfp);
+   fputs("_SHOX96_0_2_COMPRESSED__\n", wfp);
+   fputs("#define __", wfp);
+   fputs(args[3], wfp);
+   fputs("_SHOX96_0_2_COMPRESSED__\n", wfp);
+   int line_ctr = 0;
    while (fgets(cbuf, sizeof(cbuf), fp) != NULL) {
       // compress the line and look in previous lines
       // add to linked list
@@ -578,6 +615,24 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
             printf("%.2f %s\n", perc, cbuf);
             tot_len += len;
             ctot += clen;
+            char short_buf[strlen(args[3]) + 100];
+            snprintf(short_buf, sizeof(short_buf), "const byte %s0_2_%d[] PROGMEM = {", args[3], line_ctr++);
+            fputs(short_buf, wfp);
+            int len_len = encode_unsigned_varint((byte *) short_buf, clen);
+            for (int i = 0; i < len_len; i++) {
+              snprintf(short_buf, 10, "%u, ", (byte) short_buf[i]);
+              fputs(short_buf, wfp);
+            }
+            for (int i = 0; i < clen; i++) {
+              if (i) {
+                strcpy(short_buf, ", ");
+                fputs(short_buf, wfp);
+              }
+              snprintf(short_buf, 6, "%u", (byte) dbuf[i]);
+              fputs(short_buf, wfp);
+            }
+            strcpy(short_buf, "};\n");
+            fputs(short_buf, wfp);
         }
         dlen = shox96_0_2_decompress(dbuf, clen, cbuf, cur_line);
         cbuf[dlen] = 0;
@@ -595,6 +650,19 @@ if (argv == 4 && strcmp(args[1], "g") == 0) {
    perc *= 100;
    printf("\nlen: %ld/%ld=", ctot, tot_len);
    printf("%.2f\n", perc);
+   char short_buf[strlen(args[3]) + 100];
+   snprintf(short_buf, sizeof(short_buf), "const byte * const %s0_2[] PROGMEM = {", args[3]);
+   fputs(short_buf, wfp);
+   for (int i = 0; i < line_ctr; i++) {
+     if (i) {
+       strcpy(short_buf, ", ");
+       fputs(short_buf, wfp);
+     }
+     snprintf(short_buf, strlen(args[3]) + 15, "%s0_2_%d", args[3], i);
+     fputs(short_buf, wfp);
+   }
+   strcpy(short_buf, "};\n");
+   fputs(short_buf, wfp);
    fputs("#endif\n", wfp);
 } else
 if (argv == 2) {
@@ -613,11 +681,12 @@ if (argv == 2) {
    printf("%.2f\n", perc);
 } else {
    printf("Usage: shox96 \"string\"\n");
-   printf("  (or) shox96 <c|d|g> <in_file> <out_file>\n");
+   printf("  (or) shox96 <c|d|g|G> <in_file> <out_file>\n");
    printf("  where c means compress, d means decompress\n");
-   printf("    and g means generate header and c files\n");
-   printf("                 (<out_file>.h and <out_file>.c])\n");
-   printf("                 from <in_file>[.txt] for Arduino\n");
+   printf("    and g or G means generate header file\n");
+   printf("      (<out_file.h>) from <in_file>[.txt] for Arduino\n");
+   printf("      Use G for additional compression considering\n");
+   printf("        repeating sub-strings (slower).\n");
    return 1;
 }
 
