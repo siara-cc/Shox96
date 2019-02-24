@@ -33,7 +33,8 @@ char *SET2_STR = "9012345678.,-/=+ ()$%&;:<>*\"{}[]@?'^#_!\\|~`";
 
 enum {SHX_STATE_1 = 1, SHX_STATE_2};
 
-byte to_match_repeating_strings = 1;
+byte to_match_repeats_earlier = 1;
+byte to_match_repeats_within = 1;
 #define USE_64K_LOOKUP 1
 #if USE_64K_LOOKUP == 1
 byte lookup[65536];
@@ -100,7 +101,7 @@ int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
       if (in[k] != in[l + k - j])
         break;
     }
-    if ((k - j) > 6) {
+    if ((k - j) > (NICE_LEN_FOR_PRIOR - 1)) {
       *ol = append_bits(out, *ol, 14144, 10, 1);
       *ol = encodeCount(out, *ol, k - j - NICE_LEN_FOR_PRIOR); // len
       *ol = encodeCount(out, *ol, l - j - NICE_LEN_FOR_PRIOR + 1); // dist
@@ -165,40 +166,60 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
   byte state;
 
   int l, ll, ol;
-  char c_in, c_next;
+  char c_in, c_next, c_prev;
   byte is_upper, is_all_upper;
 
   ol = 0;
+  c_prev = 0;
 #if USE_64K_LOOKUP == 1
   memset(lookup, 0, sizeof(lookup));
 #endif
   state = SHX_STATE_1;
   is_all_upper = 0;
   for (l=0; l<len; l++) {
+
     c_in = in[l];
-    if (to_match_repeating_strings) {
-      if (l < (len - 4)) {
+
+    if (l < len - 4) {
+      if (c_in == c_prev && c_in == in[l + 1] && c_in == in[l + 2] && c_in == in[l + 3]) {
+        int rpt_count = l + 4;
+        while (rpt_count < len && in[rpt_count] == c_in)
+          rpt_count++;
+        rpt_count -= l;
+        ol = append_bits(out, ol, 14208, 10, 1);
+        ol = encodeCount(out, ol, rpt_count - 4);
+        l += rpt_count;
+        l--;
+        continue;
+      }
+    }
+
+    if (l < (len - NICE_LEN_FOR_PRIOR) && to_match_repeats_within) {
 #if USE_64K_LOOKUP == 1
         uint16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
         if (lookup[to_lookup]) {
 #endif
           l = matchOccurance(in, len, l, out, &ol);
-          if (l > 0)
+          if (l > 0) {
+            c_prev = in[l - 1];
             continue;
+          }
           l = -l;
 #if USE_64K_LOOKUP == 1
         } else
           lookup[to_lookup] = 1;
 #endif
+    }
+    if (l < (len - NICE_LEN_FOR_OTHER) && to_match_repeats_earlier) {
         if (prev_lines != NULL) {
           l = matchLine(in, len, l, out, &ol, prev_lines);
-          if (l > 0)
+          if (l > 0) {
+            c_prev = in[l - 1];
             continue;
+          }
           l = -l;
         }
-      }
     }
-    c_next = 0;
     if (state == SHX_STATE_2) {
       if (c_in == ' ' && len - 1 > l)
         ptr = (char *) memchr(SET2_STR, in[l+1], 42);
@@ -236,6 +257,7 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
     if (l+1 < len)
       c_next = in[l+1];
 
+    c_prev = c_in;
     if (c_in >= 32 && c_in <= 126) {
       c_in -= 32;
       if (is_all_upper && is_upper)
@@ -248,6 +270,7 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
     if (c_in == 13 && c_next == 10) {
       ol = append_bits(out, ol, 13824, 9, state);
       l++;
+      c_prev = 10;
     } else
     if (c_in == 10) {
       ol = append_bits(out, ol, 13952, 9, state);
@@ -438,6 +461,14 @@ int shox96_0_2_decompress(const char *in, int len, char *out, struct lnk_lst *pr
                ol += dict_len;
              }
              continue;
+           case 9: {
+             int count = readCount(in, &bit_no, len);
+             count += 4;
+             char rpt_c = out[ol - 1];
+             while (count--)
+               out[ol++] = rpt_c;
+             continue;
+           }
            case 10:
              continue;
          }
@@ -504,7 +535,7 @@ void print_compressed(char *in, int len) {
 
 int main(int argv, char *args[]) {
 
-char cbuf[8192];
+char cbuf[1024];
 char dbuf[1024];
 long len, tot_len, clen, ctot, dlen, l;
 float perc;
@@ -575,7 +606,7 @@ if (argv == 4 && strcmp(args[1], "d") == 0) {
 if (argv == 4 && (strcmp(args[1], "g") == 0 || 
       strcmp(args[1], "G") == 0)) {
    if (strcmp(args[1], "g") == 0)
-     to_match_repeating_strings = 0;
+     to_match_repeats_earlier = 0;
    fp = fopen(args[2], "r");
    if (fp == NULL) {
       perror(args[2]);
