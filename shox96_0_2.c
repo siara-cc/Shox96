@@ -38,7 +38,8 @@ byte to_match_repeating_strings = 1;
 #if USE_64K_LOOKUP == 1
 byte lookup[65536];
 #endif
-#define NICE_LEN 7
+#define NICE_LEN_FOR_PRIOR 7
+#define NICE_LEN_FOR_OTHER 14
 
 unsigned int mask[] = {0x8000, 0xC000, 0xE000, 0xF000, 0xF800, 0xFC00, 0xFE00, 0xFF00};
 int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
@@ -101,8 +102,8 @@ int matchOccurance(const char *in, int len, int l, char *out, int *ol) {
     }
     if ((k - j) > 6) {
       *ol = append_bits(out, *ol, 14144, 10, 1);
-      *ol = encodeCount(out, *ol, k - j - NICE_LEN); // len
-      *ol = encodeCount(out, *ol, l - j - NICE_LEN + 1); // dist
+      *ol = encodeCount(out, *ol, k - j - NICE_LEN_FOR_PRIOR); // len
+      *ol = encodeCount(out, *ol, l - j - NICE_LEN_FOR_PRIOR + 1); // dist
       l += (k - j);
       l--;
       return l;
@@ -125,20 +126,22 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         if (prev_lines->data[k] != in[i])
           break;
       }
-      if ((k - j) > (NICE_LEN - 1)) {
+      if ((k - j) > (NICE_LEN_FOR_OTHER - 1)) {
         if (last_len) {
-          int saving = ((k - j) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
-          if (saving < 0) {
-            //printf("No savng: %d\n", saving);
+          if (j > last_dist)
             continue;
-          }
+          //int saving = ((k - j) - last_len) + (last_dist - j) + (last_ctx - line_ctr);
+          //if (saving < 0) {
+          //  //printf("No savng: %d\n", saving);
+          //  continue;
+          //}
           *ol = last_ol;
         }
         last_len = (k - j);
         last_dist = j;
         last_ctx = line_ctr;
         *ol = append_bits(out, *ol, 14080, 10, 1);
-        *ol = encodeCount(out, *ol, last_len - NICE_LEN);
+        *ol = encodeCount(out, *ol, last_len - NICE_LEN_FOR_OTHER);
         *ol = encodeCount(out, *ol, last_dist);
         *ol = encodeCount(out, *ol, last_ctx);
         //printf("Len: %d, Dist: %d, Line: %d\n", last_len, last_dist, last_ctx);
@@ -420,12 +423,12 @@ int shox96_0_2_decompress(const char *in, int len, char *out, struct lnk_lst *pr
              break;
            case 8:
              if (getBitVal(in, bit_no++, 0)) {
-               int dict_len = readCount(in, &bit_no, len) + NICE_LEN;
-               int dist = readCount(in, &bit_no, len) + 6;
+               int dict_len = readCount(in, &bit_no, len) + NICE_LEN_FOR_PRIOR;
+               int dist = readCount(in, &bit_no, len) + NICE_LEN_FOR_PRIOR - 1;
                memcpy(out + ol, out + ol - dist, dict_len);
                ol += dict_len;
              } else {
-               int dict_len = readCount(in, &bit_no, len) + NICE_LEN;
+               int dict_len = readCount(in, &bit_no, len) + NICE_LEN_FOR_OTHER;
                int dist = readCount(in, &bit_no, len);
                int ctx = readCount(in, &bit_no, len);
                struct lnk_lst *cur_line = prev_lines;
