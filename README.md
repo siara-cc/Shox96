@@ -55,4 +55,4 @@ As of now Shox96 works only on `A to Z`, `a to z`, `0 to 9`, special characters,
  
 # Issues
 
-In case of any issues, please email the Author or create GitHub issue.
+In case of any issues, please email the Author (Arundale Ramanathan) at arun@siara.cc or create GitHub issue.
