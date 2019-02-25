@@ -1,6 +1,6 @@
 # Shox96 - Guaranteed Compression for Short Strings
 
-This is a C library for compressing short strings.  It was developed to individually compress and decompress small strings.
+This is a C library for compressing short strings.  It was developed to individually compress and decompress small strings. In general compression utilities such as `zip`, `gzip` do not compress short strings well and often expand them. They also use lots of memory which makes them unusable in constrained environments like Arduino.
 
 # How it works
 
