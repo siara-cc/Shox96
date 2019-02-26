@@ -8,8 +8,8 @@ shox96_0_1_0
 *.log
 *.out
 *.synctex.gz
-test*
-*.txt
+*w95*
+*test*
 Debug
 Release
 *dSYM

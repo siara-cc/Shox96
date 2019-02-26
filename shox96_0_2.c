@@ -29,7 +29,7 @@ typedef unsigned char byte;
 unsigned int  c_95[95] = {16384, 16256, 15744, 16192, 15328, 15344, 15360, 16064, 15264, 15296, 15712, 15200, 14976, 15040, 14848, 15104, 14528, 14592, 14656, 14688, 14720, 14752, 14784, 14816, 14832, 14464, 15552, 15488, 15616, 15168, 15680, 16000, 15872, 10752,  8576,  8192,  8320,  9728,  8672,  8608,  8384, 11264,  9024,  8992, 12160,  8544, 11520, 11008,  8512,  9008, 12032, 11776, 10240,  8448,  8960,  8640,  9040,  8688,  9048, 15840, 16288, 15856, 16128, 16224, 16368, 40960,  6144,     0,  2048, 24576,  7680,  6656,  3072, 49152, 13312, 12800, 63488,  5632, 53248, 45056,  5120, 13056, 61440, 57344, 32768,  4096, 12288,  7168, 13568,  7936, 13696, 15776, 16320, 15808, 16352};
 unsigned char l_95[95] = {    3,    11,    11,    11,    12,    12,     9,    10,    11,    11,    11,    11,    10,    10,     9,    10,    10,    10,    11,    11,    11,    11,    11,    12,    12,    10,    10,    10,    10,    11,    11,    10,     9,     8,    11,     9,    10,     7,    12,    11,    10,     8,    12,    12,     9,    11,     8,     8,    11,    12,     9,     8,     7,    10,    11,    11,    13,    12,    13,    12,    11,    12,    10,    11,    12,     4,     7,     5,     6,     3,     8,     7,     6,     4,     8,     8,     5,     7,     4,     4,     7,     8,     5,     4,     3,     6,     7,     7,     9,     8,     9,    11,    11,    11,    12};
 //unsigned char c[]    = {  ' ',   '!',   '"',   '#',   '$',   '%',   '&',  '\'',   '(',   ')',   '*',   '+',   ',',   '-',   '.',   '/',   '0',   '1',   '2',   '3',   '4',   '5',   '6',   '7',   '8',   '9',   ':',   ';',   '<',   '=',   '>',   '?',   '@',   'A',   'B',   'C',   'D',   'E',   'F',   'G',   'H',   'I',   'J',   'K',   'L',   'M',   'N',   'O',   'P',   'Q',   'R',   'S',   'T',   'U',   'V',   'W',   'X',   'Y',   'Z',   '[',  '\\',   ']',   '^',   '_',   '`',   'a',   'b',   'c',   'd',   'e',   'f',   'g',   'h',   'i',   'j',   'k',   'l',   'm',   'n',   'o',   'p',   'q',   'r',   's',   't',   'u',   'v',   'w',   'x',   'y',   'z',   '{',   '|',   '}',   '~'};
-char *SET2_STR = "9012345678.,-/=+ ()$%&;:<>*\"{}[]@?'^#_!\\|~`";
+char SET2_STR[] = {'9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '.', ',', '-', '/', '=', '+', ' ', '(', ')', '$', '%', '&', ';', ':', '<', '>', '*', '"', '{', '}', '[', ']', '@', '?', '\'', '^', '#', '_', '!', '\\', '|', '~', '`', '\0'};
 
 enum {SHX_STATE_1 = 1, SHX_STATE_2};
 
@@ -40,7 +40,7 @@ byte to_match_repeats_within = 1;
 byte lookup[65536];
 #endif
 #define NICE_LEN_FOR_PRIOR 7
-#define NICE_LEN_FOR_OTHER 14
+#define NICE_LEN_FOR_OTHER 12
 
 unsigned int mask[] = {0x8000, 0xC000, 0xE000, 0xF000, 0xF800, 0xFC00, 0xFE00, 0xFF00};
 int append_bits(char *out, int ol, unsigned int code, int clen, byte state) {
@@ -127,7 +127,7 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         if (prev_lines->data[k] != in[i])
           break;
       }
-      if ((k - j) > (NICE_LEN_FOR_OTHER - 1)) {
+      if ((k - j) >= NICE_LEN_FOR_OTHER) {
         if (last_len) {
           if (j > last_dist)
             continue;
@@ -145,6 +145,11 @@ int matchLine(const char *in, int len, int l, char *out, int *ol, struct lnk_lst
         *ol = encodeCount(out, *ol, last_len - NICE_LEN_FOR_OTHER);
         *ol = encodeCount(out, *ol, last_dist);
         *ol = encodeCount(out, *ol, last_ctx);
+        /*
+        if ((*ol - last_ol) > (last_len * 4)) {
+          last_len = 0;
+          *ol = last_ol;
+        }*/
         //printf("Len: %d, Dist: %d, Line: %d\n", last_len, last_dist, last_ctx);
       }
     }
@@ -315,7 +320,13 @@ char hcode[32] = {1 + (1 << 3), 2 + (0 << 3), 0, 3 + (2 << 3), 0, 0, 0, 5 + (3 <
                    0, 0,  0,  0,  0,  0,  0,  5 + (6 << 3)};
 
 enum {SHX_SET1 = 0, SHX_SET1A, SHX_SET1B, SHX_SET2, SHX_SET3, SHX_SET4, SHX_SET4A};
-char *sets[] = {"  etaoinsrl", "cdhupmbgwfy", "vkqjxz     ", " 9012345678", ".,-/=+ ()$%", "&;:<>*\"{}[]", "@?'^#_!\\|~`"};
+char sets[][11] = {{' ', ' ', 'e', 't', 'a', 'o', 'i', 'n', 's', 'r', 'l'},
+                   {'c', 'd', 'h', 'u', 'p', 'm', 'b', 'g', 'w', 'f', 'y'},
+                   {'v', 'k', 'q', 'j', 'x', 'z', ' ', ' ', ' ', ' ', ' '},
+                   {' ', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8'},
+                   {'.', ',', '-', '/', '=', '+', ' ', '(', ')', '$', '%'},
+                   {'&', ';', ':', '<', '>', '*', '"', '{', '}', '[', ']'},
+                   {'@', '?', '\'', '^', '#', '_', '!', '\\', '|', '~', '`'}};
 
 int getBitVal(const char *in, int bit_no, int count) {
    return (in[bit_no >> 3] & (0x80 >> (bit_no % 8)) ? 1 << count : 0);
@@ -628,6 +639,7 @@ if (argv == 4 && (strcmp(args[1], "g") == 0 ||
    fputs(args[3], wfp);
    fputs("_SHOX96_0_2_COMPRESSED__\n", wfp);
    int line_ctr = 0;
+   int max_len = 0;
    while (fgets(cbuf, sizeof(cbuf), fp) != NULL) {
       // compress the line and look in previous lines
       // add to linked list
@@ -668,6 +680,8 @@ if (argv == 4 && (strcmp(args[1], "g") == 0 ||
             strcpy(short_buf, "};\n");
             fputs(short_buf, wfp);
         }
+        if (len > max_len)
+          max_len = len;
         dlen = shox96_0_2_decompress(dbuf, clen, cbuf, cur_line);
         cbuf[dlen] = 0;
         printf("\n%s\n", cbuf);
@@ -696,6 +710,10 @@ if (argv == 4 && (strcmp(args[1], "g") == 0 ||
      fputs(short_buf, wfp);
    }
    strcpy(short_buf, "};\n");
+   fputs(short_buf, wfp);
+   snprintf(short_buf, sizeof(short_buf), "#define %s0_2_line_count %d\n", args[3], line_ctr);
+   fputs(short_buf, wfp);
+   snprintf(short_buf, sizeof(short_buf), "#define %s0_2_max_len %d\n", args[3], max_len);
    fputs(short_buf, wfp);
    fputs("#endif\n", wfp);
 } else

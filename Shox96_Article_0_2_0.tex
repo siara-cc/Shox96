@@ -40,7 +40,7 @@ In contrast to entropy encoding, there are various other approaches to lossless 
 
 \section{Existing techniques - Smaz and shoco}
 
-While technologies such as GZip, Deflate, Zip, LZMA are available for file compression, they do not provide optimal compression for short strings because the symbol-code mapping also needs to be sent along with the compressed bit stream.  Eventhough these methods compress far more than what we are proposing, these methods often expand the original source because the symbol-code mapping also needs to be attached to aid decompression.
+While technologies such as GZip, Deflate, Zip, LZMA are available for file compression, they do not provide optimal compression for short strings.  Eventhough these methods compress far more than what we are proposing, these methods often expand the original source for short strings because the symbol-code mapping also needs to be attached to aid decompression.
 
 To our knowledge, only two other competing technologies exist - Smaz and shoco.
 
@@ -136,9 +136,8 @@ With these two sets of codes, we form several sets of letters as shown in the ta
 \subsection{Special symbols}
 \begin{itemize}
 	\item[$\bullet$] term in Set 1b indicates termination of encoding.  This is used if length of the encoded string is not stored.
-	\item[$\bullet$] rpt in Set 1b indicates that the symbol just encoded is to be repeated specified number of times. As of now this is not implemented yet.
-	\item[$\bullet$] dict in Set 1b indicates that the specified offset in file and length is to be copied at the current position. This is dictionary based encoding. This is also not implemented yet.
-	\item[$\bullet$] rpt and dict would be eventually implemented. These do not occur in Short strings frequently.  However, these are expected to have an impact and releatively longer strings.
+	\item[$\bullet$] rpt in Set 1b indicates that the symbol just encoded is to be repeated specified number of times.
+	\item[$\bullet$] dict in Set 1b indicates that the specified offset in file and length is to be copied at the current position. This is dictionary based encoding.
 	\item[$\bullet$] CRLF in Set 1a is encoded using a single code. It will be expanded as two bytes CR LF.  If only LF is used, such as in Unix like systems, a separate code is used in Set 1a.  Also, in the rare case that only CR appears, a longer code is provided in Set1a.
 \end{itemize}
 
@@ -146,6 +145,35 @@ With these two sets of codes, we form several sets of letters as shown in the ta
 \begin{itemize}
 	\item[$\bullet$] Set 3 can be accessed both when Set 1 and Set 2 is active.  This is because the symbols occur commonly in both Set 1 and 2.  So it is necessary to have minimum length codes for these.
 	\item[$\bullet$] For the same reason, the space symbol appears both in Set 1 and Set 3.
+\end{itemize}
+
+\subsection{Repeating letters}
+\begin{itemize}
+	\item[$\bullet$] If any letter repeats more than 3 times, we use a special code (rpt) shown in Set1b of the model.
+	\item[$\bullet$] The encoder first codes the letter using the above codes.  Then the rpt code is used followed by the number of times the letter repeats.
+	\item[$\bullet$] The number of times the letter repeats is coded using a special bit sequence as explained in section "Encoding counts" that follows.
+\end{itemize}
+
+\subsection{Repeating sections}
+\begin{itemize}
+	\item[$\bullet$] If a section repeats, another code of Set1b (dict) is used followed by four fields as described next.
+	\item[$\bullet$] The first field would be 0 or 1. 0 indicates that the distance of the previous section found repeating is to be counted from beginning. 1 indicates that it is to be counted backwards from current position of encoder.
+	\item[$\bullet$] The second field indicates the length of the section that repeats.
+	\item[$\bullet$] The third field indicates the distance of the repeating section.
+	\item[$\bullet$] The fourth field is coded only if the distance starts from the beginning.  It is a number indicating the set that the section belongs to, assuming there are several sets of text are being encoded.  If only one set of text is encoded, the first field is coded as 1 indicating the distance is to be counted from the current position.
+	\item[$\bullet$] The second, third and fourth fields are encoded as explained in the following section "Encoding counts".
+\end{itemize}
+
+\subsection{Encoding Counts}
+\begin{itemize}
+	\item[$\bullet$] For encoding counts such as length and distance, the horizontal codes shown in the model are re-used, each code indicating how many bits will follow to indicate count.
+	\item[$\bullet$] If code is 0, 2 bits would follow, that is, count is between 0 and 3.
+	\item[$\bullet$] If code is 10, 5 bits would follow, that is, count is between 4 and 35.
+	\item[$\bullet$] If code is 110, 7 bits would follow, that is, count is between 36 and 163.
+	\item[$\bullet$] If code is 11100, 9 bits would follow, that is, count is between 164 and 675.
+	\item[$\bullet$] If code is 11101, 12 bits would follow, that is, count is between 676 and 4771.
+	\item[$\bullet$] If code is 11110, 16 bits would follow, that is, count is between 4772 and 70307.
+	\item[$\bullet$] If code is 11111, a varint would follow, which means a VarInt that uses a terminating byte would be used to indicate the count.  The format for this code is kept for future expansion as it is not expected that an implementation of Shox96 would need this.
 \end{itemize}
 
 Based on the above rules the following Frequency table is formed.
@@ -269,7 +297,18 @@ Even after the freqency table is formed, the original model is still needed for 
 
 \section{Implementation}
 
-According to the above Rules and Frequency table, a reference implementation has been developed and made available at https://github.com/siara-cc/Shox96/shox96\_0\_2\_0.c.  This is released under Apache License 2.0.
+According to the above Rules and Frequency table, a reference implementation has been developed and made available at https://github.com/siara-cc/Shox96 as shox96\_0\_2\_0.c.  This is released under Apache License 2.0.
+
+Further, Shox96 has been used in several open source projects shown below:
+
+\begin{itemize}
+	\item[$\bullet$] Shox96 Compression Library for Arduino Progmem - https://github.com/siara-cc/Shox96\_Arduino\_Progmem\_lib
+	\item[$\bullet$] Shox96 Compression Library for Arduino - https://github.com/siara-cc/Shox96\_Arduino\_lib
+	\item[$\bullet$] Sqlite3 User Defined Function as loadable extension - https://github.com/siara-cc/Shox96\_Sqlite\_UDF
+	\item[$\bullet$] Sqlite3 Library for ESP32 - https://github.com/siara-cc/esp32\_arduino\_sqlite3\_lib
+	\item[$\bullet$] Sqlite3 Library for ESP8266 - https://github.com/siara-cc/esp\_arduino\_sqlite3\_lib
+	\item[$\bullet$] Sqlite3 Library for ESP-IDF - https://github.com/siara-cc/esp32-idf-sqlite3
+\end{itemize}
 
 \section{Performance Comparison}
 
@@ -330,8 +369,6 @@ As can be seen from the performance numbers, Shox96 performs better than availab
 \section{Further work}
 
 We propose to improve Shox96 by including further rules for better compression.  We also propose to develop such models for other languages and types of text such as Programs.
-
-Further, we will be implementing the part for character repetition and dictionary support in the near future.
 
 \section{About the Authors}
 
