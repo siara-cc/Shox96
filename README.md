@@ -4,7 +4,7 @@ This is a C library for compressing short strings.  It was developed to individu
 
 # How it works
 
-Shox96 is an entropy encoder.  It works by assigning fixed prefix-free codes for each letter in the above Character Set. More information is available in [this article](Shox96_Article_0_2_0.pdf?raw=true).
+Shox96 is an hybrid encoder (entropy and dictionary).  It works by assigning fixed prefix-free codes for each letter in the above Character Set (entropy coding).  It also encodes repeating letter sets separately (dictionary coding).  More information is available in [this article](Shox96_Article_0_2_0.pdf?raw=true).
 
 # Compiling
 
