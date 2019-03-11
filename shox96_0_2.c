@@ -16,6 +16,11 @@
  * @author Arundale R.
  *
  */
+#ifdef _MSC_VER
+#include <windows.h>
+#else
+#include <sys/time.h>
+#endif
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
@@ -533,16 +538,35 @@ void print_compressed(char *in, int len) {
 
   int l;
   byte bit;
+  printf("Compressed bytes in decimal:\n");
   for (l=0; l<len; l++) {
     printf("%d, ", in[l]);
   }
-  printf("\n");
+  printf("\n\nCompressed bytes in binary:\n");
   for (l=0; l<len*8; l++) {
     bit = (in[l/8]>>(7-l%8))&0x01;
     printf("%d", bit);
     if (l%8 == 7) printf(" ");
   }
+  printf("\n");
 
+}
+
+uint32_t getTimeVal() {
+#ifdef _MSC_VER
+    return GetTickCount() * 1000;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * 1000000) + tv.tv_usec;
+#endif
+}
+
+double timedifference(uint32_t t0, uint32_t t1) {
+    double ret = t1;
+    ret -= t0;
+    ret /= 1000;
+    return ret;
 }
 
 int main(int argv, char *args[]) {
@@ -554,9 +578,9 @@ float perc;
 FILE *fp, *wfp;
 int bytes_read;
 char c_in;
-time_t tStart;
+uint32_t tStart;
 
-tStart = time(NULL);
+tStart = getTimeVal();
 
 if (argv == 4 && strcmp(args[1], "c") == 0) {
    tot_len = 0;
@@ -726,12 +750,12 @@ if (argv == 2) {
    memset(dbuf, 0, sizeof(dbuf));
    dlen = shox96_0_2_decompress(cbuf, ctot, dbuf, NULL);
    dbuf[dlen] = 0;
-   printf("\n%s\n", dbuf);
+   printf("\nDecompressed: %s\n", dbuf);
    perc = (len-ctot);
    perc /= len;
    perc *= 100;
-   printf("\nlen: %ld/%ld=", ctot, len);
-   printf("%.2f\n", perc);
+   printf("\nBytes (Compressed/Original=Savings%%): %ld/%ld=", ctot, len);
+   printf("%.2f%%\n", perc);
 } else {
    printf("Usage: shox96 \"string\"\n");
    printf("  (or) shox96 <c|d|g|G> <in_file> <out_file>\n");
@@ -743,7 +767,7 @@ if (argv == 2) {
    return 1;
 }
 
-printf("\nElapsed:%ld\n", (time(NULL)-tStart));
+printf("\nElapsed:%lf ms\n", timedifference(tStart, getTimeVal()));
 
 return 0;
 
