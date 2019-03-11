@@ -8,7 +8,7 @@ Shox96 is an hybrid encoder (entropy and dictionary).  It works by assigning fix
 
 # Compiling
 
-To compile, just use the simple command as follows:
+To compile, just use `make` or use gcc as follows:
 
 ```sh
 gcc -o shox96_0_2 shox96_0_2.c
