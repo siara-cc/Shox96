@@ -16,6 +16,9 @@
  * @author Arundale R.
  *
  */
+
+#define SHOX_VERSION "0.2.0"
+
 #ifdef _MSC_VER
 #include <windows.h>
 #else
@@ -762,13 +765,14 @@ if (argv == 2) {
    printf("\nBytes (Compressed/Original=Savings%%): %ld/%ld=", ctot, len);
    printf("%.2f%%\n", perc);
 } else {
-   printf("Usage: shox96 \"string\"\n");
-   printf("  (or) shox96 <c|d|g|G> <in_file> <out_file>\n");
-   printf("  where c means compress, d means decompress\n");
-   printf("    and g or G means generate header file\n");
-   printf("      (<out_file.h>) from <in_file>[.txt] for Arduino\n");
-   printf("      Use G for additional compression considering\n");
-   printf("        repeating sub-strings (slower).\n");
+   printf("Shox96 Version: %s\n", SHOX_VERSION);
+   printf("---------------------\n");
+   printf("Usage: shox96 \"string\" or shox96 [c,d,g,G] [in_file] [out_file]\n");
+   printf("\n");
+   printf("  c = compress\n");
+   printf("  d = decompress\n");
+   printf("  g = generate C header file\n");
+   printf("  G = generate C header file using additional compression (slower)\n");
    return 1;
 }
 
