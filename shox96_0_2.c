@@ -585,7 +585,7 @@ uint32_t tStart;
 
 tStart = getTimeVal();
 
-if (argv == 4 && strcmp(args[1], "c") == 0) {
+if (argv == 4 && strcmp(args[1], "-c") == 0) {
    tot_len = 0;
    ctot = 0;
    fp = fopen(args[2], "rb");
@@ -620,7 +620,7 @@ if (argv == 4 && strcmp(args[1], "c") == 0) {
    printf("\nBytes (Compressed/Original=Savings%%): %ld/%ld=", ctot, tot_len);
    printf("%.2f%%\n", perc);
 } else
-if (argv == 4 && strcmp(args[1], "d") == 0) {
+if (argv == 4 && strcmp(args[1], "-d") == 0) {
    fp = fopen(args[2], "rb");
    if (fp == NULL) {
       perror(args[2]);
@@ -647,9 +647,9 @@ if (argv == 4 && strcmp(args[1], "d") == 0) {
      }
    } while (bytes_read > 0);
 } else
-if (argv == 4 && (strcmp(args[1], "g") == 0 || 
-      strcmp(args[1], "G") == 0)) {
-   if (strcmp(args[1], "g") == 0)
+if (argv == 4 && (strcmp(args[1], "-g") == 0 || 
+      strcmp(args[1], "-G") == 0)) {
+   if (strcmp(args[1], "-g") == 0)
      to_match_repeats_earlier = 0;
    fp = fopen(args[2], "r");
    if (fp == NULL) {
@@ -767,12 +767,13 @@ if (argv == 2) {
 } else {
    printf("Shox96 Version: %s\n", SHOX_VERSION);
    printf("---------------------\n");
-   printf("Usage: shox96 \"string\" or shox96 [c,d,g,G] [in_file] [out_file]\n");
+   printf("Usage: shox96 \"string\" or shox96 [action] [in_file] [out_file]\n");
    printf("\n");
-   printf("  c = compress\n");
-   printf("  d = decompress\n");
-   printf("  g = generate C header file\n");
-   printf("  G = generate C header file using additional compression (slower)\n");
+   printf("Actions:\n");
+   printf("  -c    compress\n");
+   printf("  -d    decompress\n");
+   printf("  -g    generate C header file\n");
+   printf("  -G    generate C header file using additional compression (slower)\n");
    return 1;
 }
 
