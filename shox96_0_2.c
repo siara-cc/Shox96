@@ -767,7 +767,7 @@ if (argv == 2) {
    return 1;
 }
 
-printf("\nElapsed:%lf ms\n", timedifference(tStart, getTimeVal()));
+printf("\nElapsed: %lf ms\n", timedifference(tStart, getTimeVal()));
 
 return 0;
 
