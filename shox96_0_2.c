@@ -611,6 +611,11 @@ if (argv == 4 && strcmp(args[1], "c") == 0) {
         }
      }
    } while (bytes_read > 0);
+   perc = (tot_len-ctot);
+   perc /= tot_len;
+   perc *= 100;
+   printf("\nBytes (Compressed/Original=Savings%%): %ld/%ld=", ctot, tot_len);
+   printf("%.2f%%\n", perc);
 } else
 if (argv == 4 && strcmp(args[1], "d") == 0) {
    fp = fopen(args[2], "rb");
@@ -721,8 +726,8 @@ if (argv == 4 && (strcmp(args[1], "g") == 0 ||
    perc = (tot_len-ctot);
    perc /= tot_len;
    perc *= 100;
-   printf("\nlen: %ld/%ld=", ctot, tot_len);
-   printf("%.2f\n", perc);
+   printf("\nBytes (Compressed/Original=Savings%%): %ld/%ld=", ctot, tot_len);
+   printf("%.2f%%\n", perc);
    char short_buf[strlen(args[3]) + 100];
    snprintf(short_buf, sizeof(short_buf), "const byte * const %s0_2[] PROGMEM = {", args[3]);
    fputs(short_buf, wfp);

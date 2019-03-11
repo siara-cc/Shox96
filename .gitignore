@@ -2,6 +2,7 @@
 .vscode*
 a.out
 shox96
+shox96_0_2
 shox96_0_1_0
 .DS_Store
 *.aux
@@ -14,3 +15,6 @@ Debug
 Release
 *dSYM
 ARM.h
+proverbs.h
+errno.h
+Html.h
