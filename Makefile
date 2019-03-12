@@ -1,5 +1,5 @@
 SRCFILE = shox96_0_2.c
-OUTFILE = shox96_0_2
+OUTFILE = shox96
 
 default:
 	gcc -o $(OUTFILE) $(SRCFILE)
