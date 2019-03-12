@@ -765,7 +765,7 @@ if (argv == 2) {
    printf("\nBytes (Compressed/Original=Savings%%): %ld/%ld=", ctot, len);
    printf("%.2f%%\n", perc);
 } else {
-   printf("Shox96 Version: %s\n", SHOX_VERSION);
+   printf("Shox96 (byte format version: %s)\n", SHOX_VERSION);
    printf("---------------------\n");
    printf("Usage: shox96 \"string\" or shox96 [action] [in_file] [out_file]\n");
    printf("\n");
