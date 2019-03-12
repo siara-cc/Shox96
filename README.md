@@ -34,8 +34,8 @@ To see Shox96 in action, simply try to compress a string:
 To compress and decompress a file, use:
 
 ```
-./shox96 c <input_file> <compressed_file>
-./shox96 d <compressed_file> <decompressed_file>
+./shox96 -c <input_file> <compressed_file>
+./shox96 -d <compressed_file> <decompressed_file>
 ```
 
 Shox96 does not give good ratios compressing files more than 512 bytes.  It can also not be used for compressing binary files.  It is only suitable for compressing Short Strings and small text files in constrained environments such as Arduino and other microcontroller based systems.  It can also be used to store compressed short strings in a database. See below for real-life projects that use Shox96.
