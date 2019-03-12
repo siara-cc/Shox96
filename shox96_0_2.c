@@ -17,7 +17,7 @@
  *
  */
 
-#define SHOX_VERSION "0.2.0"
+#define SHOX_VERSION "0.2"
 
 #ifdef _MSC_VER
 #include <windows.h>
@@ -766,7 +766,7 @@ if (argv == 2) {
    printf("%.2f%%\n", perc);
 } else {
    printf("Shox96 (byte format version: %s)\n", SHOX_VERSION);
-   printf("---------------------\n");
+   printf("---------------------------------\n");
    printf("Usage: shox96 \"string\" or shox96 [action] [in_file] [out_file]\n");
    printf("\n");
    printf("Actions:\n");
