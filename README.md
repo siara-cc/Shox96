@@ -11,7 +11,7 @@ Shox96 is an hybrid encoder (entropy and dictionary).  It works by assigning fix
 To compile, just use `make` or use gcc as follows:
 
 ```sh
-gcc -o shox96_0_2 shox96_0_2.c
+gcc -o shox96 shox96_0_2.c
 ```
 
 # API
@@ -28,14 +28,14 @@ The `lnk_list` is used only when a bunch of strings are compressed for use with 
 To see Shox96 in action, simply try to compress a string:
 
 ```
-./shox96_0_2 "Hello World"
+./shox96 "Hello World"
 ```
 
 To compress and decompress a file, use:
 
 ```
-./shox96_0_2 c <input_file> <compressed_file>
-./shox96_0_2 d <compressed_file> <decompressed_file>
+./shox96 c <input_file> <compressed_file>
+./shox96 d <compressed_file> <decompressed_file>
 ```
 
 Shox96 does not give good ratios compressing files more than 512 bytes.  It can also not be used for compressing binary files.  It is only suitable for compressing Short Strings and small text files in constrained environments such as Arduino and other microcontroller based systems.  It can also be used to store compressed short strings in a database. See below for real-life projects that use Shox96.
