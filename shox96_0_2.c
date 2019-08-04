@@ -208,7 +208,7 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
       }
     }
 
-    if (l < (len - NICE_LEN_FOR_PRIOR) && to_match_repeats_within) {
+    if (l < (len - NICE_LEN_FOR_PRIOR + 1) && to_match_repeats_within) {
 #if USE_64K_LOOKUP == 1
         uint16_t to_lookup = c_in ^ in[l + 1] + ((in[l + 2] ^ in[l + 3]) << 8);
         if (lookup[to_lookup]) {
@@ -224,7 +224,7 @@ int shox96_0_2_compress(const char *in, int len, char *out, struct lnk_lst *prev
           lookup[to_lookup] = 1;
 #endif
     }
-    if (l < (len - NICE_LEN_FOR_OTHER) && to_match_repeats_earlier) {
+    if (l < (len - NICE_LEN_FOR_OTHER + 1) && to_match_repeats_earlier) {
         if (prev_lines != NULL) {
           l = matchLine(in, len, l, out, &ol, prev_lines);
           if (l > 0) {
