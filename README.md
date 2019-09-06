@@ -1,4 +1,6 @@
-# Shox96 - Guaranteed Compression for Short Strings
+# (Deprecated) Shox96 - Guaranteed Compression for Short Strings
+
+** This library has been deprecated **. Use [Unishox](https://github.com/siara-cc/Unishox) instead.  It has same features and more.
 
 This is a C library for compressing short strings.  It was developed to individually compress and decompress small strings. In general compression utilities such as `zip`, `gzip` do not compress short strings well and often expand them. They also use lots of memory which makes them unusable in constrained environments like Arduino.
 
